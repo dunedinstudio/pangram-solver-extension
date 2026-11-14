@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -13,15 +15,41 @@ const executables = {
 };
 assert.ok(Object.hasOwn(executables, name), 'Choose chrome or edge.');
 const preview = process.argv.includes('--preview');
+const packaged = process.argv.includes('--release');
+assert.ok(!packaged || !preview, 'Release checks require the native action popup.');
 const scale = process.argv.includes('--scaled') ? 1.25 : 1;
 const root = fileURLToPath(new URL('../', import.meta.url));
-const evidence = resolve(root, 'private/phase4-final-correction', [name, preview ? 'preview' : 'native', scale].join('-'));
-const unpacked = resolve(root, 'dist/chromium');
+const evidence = resolve(root, packaged ? 'private/phase5' : 'private/phase4-final-correction',
+  [name, preview ? 'preview' : 'native', scale].join('-'));
 await mkdir(evidence, { recursive: true });
 
 const run = await mkdtemp(resolve(evidence, 'session-'));
 const report = { browser: name, mode: preview ? 'extension tab preview' : 'native action', scale, checks: [], screenshots: [] };
+const unpacked = packaged ? resolve(run, 'extracted') : resolve(root, 'dist/chromium');
+const profile = resolve(run, 'profile');
 let context;
+
+async function extractRelease() {
+  const inventory = JSON.parse(await readFile(resolve(root, 'release/PACKAGE_INVENTORY.json'), 'utf8'));
+  const archive = inventory.archives.find(item => item.browser === name);
+  const zip = resolve(root, 'release', `pangram-solver-${name}.zip`);
+  const sha256 = buffer => createHash('sha256').update(buffer).digest('hex');
+  const archiveBytes = await readFile(zip);
+  assert.equal(sha256(archiveBytes), archive.sha256);
+  assert.equal(archiveBytes.length, archive.bytes);
+  const paths = inventory.runtime.map(item => item.path);
+  const entries = execFileSync('tar.exe', ['-tf', zip], { encoding: 'utf8' }).trimEnd().split(/\r?\n/);
+  assert.ok(entries.every(path => /^[a-zA-Z0-9_-]+(?:\/[a-zA-Z0-9_-]+)?\.[a-z]+$/.test(path)));
+  assert.deepEqual(entries, paths);
+  await mkdir(unpacked);
+  execFileSync('tar.exe', ['-xf', zip, '-C', unpacked]);
+  for (const entry of inventory.runtime) {
+    const bytes = await readFile(resolve(unpacked, entry.path));
+    assert.equal(bytes.length, entry.bytes, entry.path);
+    assert.equal(sha256(bytes), entry.sha256, entry.path);
+  }
+  report.archive = archive;
+}
 
 async function waitFor(get, label) {
   for (let attempt = 0; attempt < 100; attempt += 1) {
@@ -35,9 +63,11 @@ async function waitFor(get, label) {
 function attach(cdp, sessionId) {
   const pending = new Map();
   let nextId = 0;
+  let observe;
   const receive = event => {
     if (event.sessionId !== sessionId) return;
     const reply = JSON.parse(event.message);
+    if (reply.method) observe?.(reply.method, reply.params);
     const task = pending.get(reply.id);
     if (!task) return;
     if (reply.error) task.reject(new Error(reply.error.message));
@@ -51,7 +81,8 @@ function attach(cdp, sessionId) {
     for (const task of pending.values()) task.reject(new Error('Popup target detached.'));
   };
   cdp.on('Target.detachedFromTarget', detached);
-  return async (method, params = {}) => {
+  return async (method, params = {}, listener) => {
+    if (listener) observe = listener;
     const id = ++nextId;
     let timer;
     try {
@@ -79,7 +110,7 @@ async function check(label, action) {
 }
 
 async function launch() {
-  const browser = await chromium.launchPersistentContext(resolve(run, 'profile'), {
+  const browser = await chromium.launchPersistentContext(profile, {
     executablePath: process.env.PANGRAM_BROWSER || executables[name],
     headless: false,
     viewport: null,
@@ -92,6 +123,7 @@ async function launch() {
 }
 
 try {
+  if (packaged) await extractRelease();
   context = await launch();
   let cdp, host, tab;
   const hostTitle = 'Pangram Solver QA host';
@@ -106,6 +138,18 @@ try {
   await connect();
   await context.setOffline(true);
   report.version = await cdp.send('Browser.getVersion');
+  if (packaged) {
+    const { id } = await cdp.send('Extensions.loadUnpacked', { path: unpacked });
+    await context.close();
+    const preferences = resolve(profile, 'Default/Preferences');
+    const settings = JSON.parse(await readFile(preferences, 'utf8'));
+    settings.extensions ??= {};
+    settings.extensions.pinned_extensions = [id];
+    await writeFile(preferences, JSON.stringify(settings));
+    context = await launch();
+    await connect();
+    await context.setOffline(true);
+  }
 
   async function open(path) {
     const { extensions } = await cdp.send('Extensions.getExtensions');
@@ -137,12 +181,21 @@ try {
   }
 
   let popup = await open(unpacked);
+  const outgoing = [];
+  function observePopupRequests(target) {
+    return target.send('Network.enable', {}, (event, params) => {
+      if (event === 'Network.requestWillBeSent' && /^https?:/i.test(params.request.url)) {
+        outgoing.push(params.request.url);
+      }
+    });
+  }
   async function offline(value) {
     await popup.send('Network.emulateNetworkConditions', {
       offline: value, latency: 0, downloadThroughput: -1, uploadThroughput: -1,
     });
   }
   await offline(true);
+  if (packaged) await observePopupRequests(popup);
   async function evaluate(expression) {
     const reply = await popup.send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
     if (reply.exceptionDetails) throw new Error(JSON.stringify(reply.exceptionDetails));
@@ -220,6 +273,10 @@ try {
     }
     assert.ok(await evaluate("location.protocol === 'chrome-extension:'"));
     assert.equal(await evaluate('navigator.onLine'), false);
+    if (packaged) {
+      assert.equal(await evaluate("chrome.runtime.getManifest().version"), report.archive.version);
+      assert.equal(await evaluate("chrome.action.getUserSettings().then(settings => settings.isOnToolbar)"), true);
+    }
   });
 
   await check('fresh Hints Only selection, accessible names, center focus and compact geometry', async () => {
@@ -240,6 +297,32 @@ try {
       const button = ax.nodes.find(node => !node.ignored && node.name?.value === name
         && ['button', 'toggleButton'].includes(node.role?.value));
       assert.equal(String(button?.properties?.find(prop => prop.name === 'pressed')?.value.value), expected);
+    }
+    report.contrast = await evaluate(`(() => {
+      const color = (selector, property, pseudo) =>
+        getComputedStyle(document.querySelector(selector), pseudo)[property];
+      const luminance = rgb => rgb.match(/[\\d.]+/g).slice(0, 3)
+        .map(value => Number(value) / 255)
+        .map(value => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4)
+        .reduce((total, value, index) => total + value * [0.2126, 0.7152, 0.0722][index], 0);
+      const contrast = (a, b) => {
+        const [dark, light] = [luminance(a), luminance(b)].sort((x, y) => x - y);
+        return (light + 0.05) / (dark + 0.05);
+      };
+      const panel = color('#result-panel', 'backgroundColor');
+      const [thumb, track] = color('#result-panel', 'scrollbarColor').match(/rgb\\([^)]+\\)/g);
+      return {
+        outerCell: contrast(color('.cell.top', 'backgroundColor'), color('.cell.top', 'backgroundColor', '::before')),
+        centerFocus: contrast(color('.cell.center', 'backgroundColor'), color('.cell.center', 'backgroundColor', '::before')),
+        modeState: contrast(color('#hint-mode', 'boxShadow'), color('#hint-mode', 'backgroundColor')),
+        scrollThumb: contrast(thumb, track),
+        resultText: contrast(color('#result-panel', 'color'), panel),
+        mutedText: contrast(color('#result-status', 'color'), panel),
+        footerLink: contrast(color('footer a', 'color'), color(':root', 'backgroundColor')),
+      };
+    })()`);
+    for (const [element, ratio] of Object.entries(report.contrast)) {
+      assert.ok(ratio >= (['resultText', 'mutedText', 'footerLink'].includes(element) ? 4.5 : 3), `${element}: ${ratio}`);
     }
     report.layout = await evaluate(`(() => {
       const root = document.documentElement;
@@ -279,6 +362,20 @@ try {
     assert.equal(await focus(), 6);
     await expectMode('hints');
     await shot('14-golden-first-hints');
+    if (packaged) {
+      await click('.reveal');
+      assert.deepEqual(await names(), ['coating', ...masking(golden.slice(1))]);
+      assert.equal(await read('#reveal-progress'), '1 of 7 revealed');
+      await shot('15-one-answer-revealed');
+      await returnToGame();
+      await reopen();
+      await expectGoldenReveal();
+      await context.close();
+      context = await launch();
+      await connect();
+      await reopen();
+      await expectGoldenReveal();
+    }
     await evaluate("document.querySelector('#reset').focus()");
     await key('Tab');
     assert.equal(await evaluate('document.activeElement.id'), 'full-mode');
@@ -385,6 +482,7 @@ try {
 
   const website = 'https://spellingbeeanswers.app/';
   await check('one safe CTA opens the exact URL, lead-in and attribution are plain text', async () => {
+    if (packaged) assert.deepEqual(outgoing, [], 'Offline popup emitted HTTP(S) requests');
     const footer = await evaluate(`(() => {
       const node = document.querySelector('footer');
       const link = node.querySelector('a');
@@ -402,11 +500,20 @@ try {
     await offline(false);
     await context.setOffline(false);
     await context.route(website, route => route.fulfill({ status: 200, contentType: 'text/html', body: '<title>Local QA response</title>' }));
+    const navigationRequest = packaged
+      ? context.waitForEvent('request', { predicate: request => request.url() === website, timeout: 8000 })
+        .then(request => request.headerValue('referer'))
+      : null;
     const navigation = context.waitForEvent('page', { timeout: 8000 });
     await click('footer a');
     const page = await navigation;
     await page.waitForURL(website);
     assert.equal(await page.evaluate('window.opener'), null);
+    if (packaged) {
+      const referer = await navigationRequest;
+      assert.equal(referer, null);
+      report.network = { popupHttpRequestsBeforeCta: [...outgoing], clickedUrl: website, referer: null };
+    }
     if (!preview) {
       const id = popup.targetId;
       await waitFor(async () => !(await targets()).some(item => item.targetId === id), 'CTA closes native popup');
@@ -415,9 +522,17 @@ try {
     await context.setOffline(true);
   });
 
-  const ready = async () => {
+  async function expectGoldenReveal() {
+    await waitFor(async () => (await names()).length === 7, 'restored golden hints');
+    await expectMode('hints');
+    assert.deepEqual(await cells(), [...'COATING']);
+    assert.deepEqual(await names(), ['coating', ...masking(golden.slice(1))]);
+    assert.equal(await read('#reveal-progress'), '1 of 7 revealed');
+  }
+
+  async function ready() {
     await waitFor(() => evaluate("document.querySelector('.letters')?.getAttribute('aria-busy') === 'false'"), 'restored popup');
-  };
+  }
 
   async function reopen(path = unpacked) {
     const start = performance.now();
@@ -435,6 +550,10 @@ try {
     return performance.now() - start;
   }
 
+  async function installFixture(path) {
+    if (!preview) await cdp.send('Extensions.loadUnpacked', { path });
+  }
+
   async function returnToGame() {
     if (preview) {
       await popup.close();
@@ -447,8 +566,12 @@ try {
     if ((await targets()).some(item => item.targetId === previous)) {
       await popup.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 }).catch(() => {});
     }
-    if ((await targets()).some(item => item.targetId === previous)) await popup.close();
-    assert.ok(!(await targets()).some(item => item.targetId === previous));
+    if ((await targets()).some(item => item.targetId === previous)) {
+      await popup.close().catch(error => {
+        if (!/No target with given id found/i.test(String(error))) throw error;
+      });
+    }
+    await waitFor(async () => !(await targets()).some(item => item.targetId === previous), 'native popup dismissal');
   }
 
   async function immediateKeyAndClose(letter) {
@@ -709,6 +832,7 @@ try {
       });
     `);
     await writeFile(file, fixture);
+    await installFixture(failing);
     await reopen(failing);
     assert.match(await read('#storage-notice'), /could not be loaded/);
     for (const letter of 'COATING') await key(letter);
@@ -731,6 +855,7 @@ try {
     await popup.close().catch(() => {}); // Native popup normally closes when the CTA opens its tab.
     const broken = resolve(run, 'missing-dictionary');
     await cp(unpacked, broken, { recursive: true, filter: path => !path.endsWith('dictionary-data.js') });
+    await installFixture(broken);
     await reopen(broken);
     await waitFor(() => evaluate("document.querySelector('#result-status')?.textContent.includes('dictionary is unavailable')"), 'missing dictionary state');
     for (const letter of 'COATING') await key(letter);
@@ -748,6 +873,7 @@ try {
     const module = resolve(delayed, 'dictionary-data.js');
     const data = await readFile(module, 'utf8');
     await writeFile(module, "await new Promise(resolve => { globalThis.qaReleaseDictionary = resolve; });\n" + data);
+    await installFixture(delayed);
     await reopen(delayed);
     await waitFor(() => evaluate("document.querySelector('#result-status')?.textContent.includes('Preparing')"), 'loading state');
     await ready();

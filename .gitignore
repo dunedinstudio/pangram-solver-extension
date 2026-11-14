@@ -1,6 +1,7 @@
 node_modules/
 .pnpm-store/
 /dist/
+/release/
 /coverage/
 /test-results/
 /playwright-report/
@@ -24,3 +25,4 @@ Thumbs.db
 /PHASE_3_HANDOFF_REPORT.md
 /PHASE_4_HANDOFF_REPORT.md
 /PHASE_4_FINAL_CORRECTION_REPORT.md
+/PHASE_5_HANDOFF_REPORT.md

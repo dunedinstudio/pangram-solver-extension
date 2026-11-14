@@ -1,9 +1,9 @@
 {
   "name": "pangram-solver-extension",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Pangram finder for seven-letter Spelling Bee games.",
+  "description": "Find pangrams and get hints for seven-letter Spelling Bee word games. Works offline.",
   "packageManager": "pnpm@11.25.0",
   "engines": {
     "node": ">=24.14.0"
@@ -11,8 +11,10 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "build": "node scripts/build.mjs",
-    "test": "node scripts/build.mjs && node --test",
-    "benchmark": "node scripts/build.mjs && node --expose-gc scripts/benchmark.mjs"
+    "test": "node scripts/build.mjs && node --test \"tests/*.test.mjs\"",
+    "benchmark": "node scripts/build.mjs && node --expose-gc scripts/benchmark.mjs",
+    "release:pack": "pnpm run typecheck && pnpm test && pwsh -NoProfile -File scripts/package-release.ps1",
+    "release:verify": "pwsh -NoProfile -File scripts/package-release.ps1 -VerifyOnly"
   },
   "devDependencies": {
     "typescript": "6.0.3"

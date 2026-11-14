@@ -2,7 +2,7 @@
 
 ## Runtime and build
 
-The Chrome and Edge desktop targets share one Manifest V3 unpacked build. The toolbar action serves bundled HTML, CSS, and strict TypeScript compiled to native browser modules. Node and pinned pnpm build `dist/chromium` from an explicit file list. The runtime has zero dependencies. Phase 5 will check the two browsers and produce store-specific release archives from verified runtime files.
+The Chrome and Edge desktop targets share one Manifest V3 unpacked build. The toolbar action serves bundled HTML, CSS, and strict TypeScript compiled to native browser modules. Node and pinned pnpm build `dist/chromium` from an explicit file list. The runtime has zero dependencies. Version 1.0.0 uses byte-identical archives verified in both browsers. See the [owner release guide](../OWNER_PHASE5_RELEASE_GUIDE.md).
 
 | Directory | Responsibility |
 | --- | --- |
@@ -55,7 +55,7 @@ Reset commits empty cells and reveals with a new revision, retains the display p
 
 The decoder checks the schema, normalized cells, distinctness, mode, revision and bounded reveal IDs. A corrupt record starts a fresh puzzle and is replaced on a successful edit. An unknown future schema stays intact and opens an in-memory session. A read failure also opens an in-memory session, and a write failure displays a warning while solving remains available. Phase 4 introduces the first schema. The extension keeps one record until replacement, uninstallation, profile removal, or storage clearing.
 
-The extension keeps data in the browser profile and sends no puzzle or reveal data externally. The website CTA performs a separate user-initiated HTTPS navigation under the website's privacy practices. Phase 5 will document user controls and reconcile both store declarations with the shipped build.
+The extension keeps data in the browser profile and sends no puzzle or reveal data externally. The website CTA performs a separate user-initiated HTTPS navigation under the website's privacy practices. See the [privacy policy draft](../store-submission/privacy/PANGRAM_SOLVER_PRIVACY_POLICY.md) and [store declarations](../store-submission/PRIVACY_DECLARATIONS.md).
 
 ## Verification plan
 

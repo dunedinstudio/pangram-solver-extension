@@ -1,6 +1,6 @@
 # Pangram Solver
 
-Pangram Solver is a free browser extension in development for finding pangrams in seven-letter Spelling Bee games.
+Pangram Solver is a free browser extension for finding pangrams and getting hints in seven-letter Spelling Bee games.
 
 Powered By https://spellingbeeanswers.app/
 
@@ -9,8 +9,6 @@ Powered By https://spellingbeeanswers.app/
 A pangram uses all seven distinct letters of a puzzle, including its required center letter. A valid candidate uses only those letters, may repeat them, and follows the game's four-letter minimum. An answer that uses all seven distinct letters necessarily has at least seven characters. Games may accept different words from the bundled dictionary. Pangram Solver is an independent tool for Spelling Bee games.
 
 **Implemented.** The Manifest V3 extension includes the offline pangram engine, keyboard and mouse entry, automatic results, and word lengths. Hints Only is selected when there is no valid saved mode. It shows two letters and the word length, with individual reveal buttons and a progress counter. Full Answers is available on the left. The popup restores saved letters, display mode, and reveals after closure and browser restart.
-
-**Planned.** Phase 5 prepares Chrome and Edge release packages. Phase 6 handles store submissions.
 
 ## How to use the popup
 
@@ -37,7 +35,7 @@ pnpm run benchmark
 
 The build writes the unpacked extension to `dist/chromium`. To inspect the development popup, enable Developer mode in `chrome://extensions` or `edge://extensions`, choose **Load unpacked**, and select that directory. The Node.js tests verify the package and compare the engine against independent dictionary oracles. Run the benchmark to measure dictionary initialization and lookup latency in Node.js.
 
-The optional browser verification uses an installed Chrome or Edge and Playwright Core (`1.62.1` was tested). Set `PANGRAM_PLAYWRIGHT` to the directory of an existing Playwright Core installation, then run `node scripts/verify-browser.mjs chrome` or `node scripts/verify-browser.mjs edge` after building. Add `--scaled` for 125% device scaling. The script tests native popups, rapid changes, and browser-process restarts in disposable profiles. It saves evidence under `private/phase4-final-correction/`. See the [owner testing guide](OWNER_PHASE4_TESTING.md) for ordinary browser checks.
+The optional browser verification uses an installed Chrome or Edge and Playwright Core. Set `PANGRAM_PLAYWRIGHT` to an existing Playwright Core installation, then run `node scripts/verify-browser.mjs chrome` or `node scripts/verify-browser.mjs edge` after building. Add `--release` to test the matching ZIP and `--scaled` for 125% device scaling. The script uses real action popups and disposable profiles. The [owner release guide](OWNER_PHASE5_RELEASE_GUIDE.md) covers packaging, verification and evidence locations.
 
 ## Privacy and permissions
 
@@ -51,7 +49,7 @@ Dunedin Studio reserves its rights in the original application code and artwork.
 
 ## Release status and contact
 
-Version 0.1.0 is an unpacked development build with the Phase 4 hints and persistence workflow verified in native Chrome and Edge popups. Store preparation and submissions are planned. See the [architecture](docs/architecture.md) and [marketplace policy assessment](docs/marketplace-policy.md).
+Version 1.0.0 is the first technically verified Chrome and Edge store candidate. Both store submissions await owner authorization and publication of the dedicated privacy policy. See the [release notes](CHANGELOG.md), [owner release guide](OWNER_PHASE5_RELEASE_GUIDE.md) and [marketplace policy assessment](docs/marketplace-policy.md).
 
 The GitHub repository stays private throughout development. Only the owner may decide whether and when it becomes public. Completing Phase 6 or receiving browser-store approval does not change repository visibility.
 
