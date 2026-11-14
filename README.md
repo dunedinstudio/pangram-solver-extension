@@ -52,6 +52,6 @@ Version 1.0.0 is the first technically verified Chrome and Edge store candidate.
 
 The GitHub repository stays private throughout development. Only the owner may decide whether and when it becomes public. Completing Phase 6 or receiving browser-store approval does not change repository visibility.
 
-Website [spellingbeeanswers.app](https://spellingbeeanswers.app/) · [Contact Dunedin Studio](https://spellingbeeanswers.app/contact)
+Website [Contact Dunedin Studio](https://spellingbeeanswers.app/contact)
 
 Powered By https://spellingbeeanswers.app/
