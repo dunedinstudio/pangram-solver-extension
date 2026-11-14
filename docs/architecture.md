@@ -55,7 +55,7 @@ The extension will store data in the browser profile for its owner and send no p
 
 | Phase | Checks |
 | --- | --- |
-| 1 | Frozen install, strict typecheck, repeatable build, runtime file allowlist, permission and CSP inventory, notice hashes, ignore rules, audited Git tree/history, anonymous GitHub visibility and README if published |
+| 1 | Frozen install, strict typecheck, repeatable build, runtime file allowlist, permission and CSP inventory, notice hashes, ignore rules, audited Git tree and history, and authenticated verification of private GitHub visibility, branch, README, file inventory and commit |
 | 2 | Mandatory center and seven distinct cells, incomplete/invalid/Unicode cases, repeat letters, outside-letter and missing-letter exclusions, exact counts, ordering, checksum and notice retention. Compare many puzzles with an independent set-based full-corpus oracle and measure startup and lookup |
 | 3 | Approved mockup and geometry, labels and keyboard focus, popup sizing/overflow, original artwork and icon readability, exact CTA text/link/attribution, scrollable results, empty/partial states |
 | 4 | Partial and complete puzzles, popup close immediately after input or reveal, browser restart, mode, individual reveals and progress, corruption and future schema, rejected storage calls, multiple popups, rapid edit/reset/reopen with delayed writes, offline operation |
