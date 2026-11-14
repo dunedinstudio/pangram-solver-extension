@@ -26,6 +26,14 @@ function memory(initial) {
   };
 }
 
+test('an empty puzzle defaults to hints and Reset can retain either selected mode', () => {
+  const cells = Array(7).fill('');
+  assert.deepEqual(emptyPuzzle(), { cells, mode: 'hints', revealedWords: [] });
+  for (const mode of ['full', 'hints']) {
+    assert.deepEqual(emptyPuzzle(mode), { cells, mode, revealedWords: [] });
+  }
+});
+
 test('fresh, damaged and future schemas respond safely', async () => {
   const fresh = createPersistence(memory());
   assert.deepEqual(await fresh(read), { status: 'ready', record: null, recovered: false });

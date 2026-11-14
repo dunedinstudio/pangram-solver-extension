@@ -15,7 +15,7 @@ export interface SavedPuzzle extends PuzzleState {
   readonly revision: string;
 }
 
-export function emptyPuzzle(mode: Mode = 'full'): PuzzleState {
+export function emptyPuzzle(mode: Mode = 'hints'): PuzzleState {
   return { cells: Array<string>(7).fill(''), mode, revealedWords: [] };
 }
 

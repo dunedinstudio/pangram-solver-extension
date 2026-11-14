@@ -8,15 +8,15 @@ Powered By https://spellingbeeanswers.app/
 
 A pangram uses all seven distinct letters of a puzzle, including its required center letter. A valid candidate uses only those letters, may repeat them, and follows the game's four-letter minimum. An answer that uses all seven distinct letters necessarily has at least seven characters. Games may accept different words from the bundled dictionary. Pangram Solver is an independent tool for Spelling Bee games.
 
-**Implemented.** The Manifest V3 extension includes the offline pangram engine, keyboard and mouse entry, automatic results, and word lengths. Full Answers is the default. Hints Only shows two letters and the word length, with individual reveal buttons and a progress counter. The popup restores saved letters, display mode, and reveals after closure and browser restart.
+**Implemented.** The Manifest V3 extension includes the offline pangram engine, keyboard and mouse entry, automatic results, and word lengths. Hints Only is selected when there is no valid saved mode. It shows two letters and the word length, with individual reveal buttons and a progress counter. Full Answers is available on the left. The popup restores saved letters, display mode, and reveals after closure and browser restart.
 
 **Planned.** Phase 5 prepares Chrome and Edge release packages. Phase 6 handles store submissions.
 
 ## How to use the popup
 
 1. Open Pangram Solver from the toolbar. Enter the required center letter and six different outer letters.
-2. Read the matching pangrams and word lengths as soon as the puzzle is complete. Scroll inside the results panel to see longer lists.
-3. Select **Hints Only** to reveal words one at a time. Open the popup again to resume your saved puzzle and reveals.
+2. Use **Hints Only** to reveal matching pangrams one at a time, or select **Full Answers** to see the complete list. Scroll inside the results panel to see longer lists.
+3. Open the popup again to resume your saved puzzle, mode, and reveals.
 4. Use **Reset** to clear the saved puzzle and reveals while keeping the selected display mode.
 
 ## Chrome and Edge
@@ -37,7 +37,7 @@ pnpm run benchmark
 
 The build writes the unpacked extension to `dist/chromium`. To inspect the development popup, enable Developer mode in `chrome://extensions` or `edge://extensions`, choose **Load unpacked**, and select that directory. The Node.js tests verify the package and compare the engine against independent dictionary oracles. Run the benchmark to measure dictionary initialization and lookup latency in Node.js.
 
-The optional browser verification uses an installed Chrome or Edge and Playwright Core (`1.62.1` was tested). Set `PANGRAM_PLAYWRIGHT` to the directory of an existing Playwright Core installation, then run `node scripts/verify-browser.mjs chrome` or `node scripts/verify-browser.mjs edge` after building. Add `--scaled` for 125% device scaling. The script tests native popups, rapid changes, and browser-process restarts in disposable profiles. It saves evidence under `private/phase4/`. See the [owner testing guide](OWNER_PHASE4_TESTING.md) for ordinary browser checks.
+The optional browser verification uses an installed Chrome or Edge and Playwright Core (`1.62.1` was tested). Set `PANGRAM_PLAYWRIGHT` to the directory of an existing Playwright Core installation, then run `node scripts/verify-browser.mjs chrome` or `node scripts/verify-browser.mjs edge` after building. Add `--scaled` for 125% device scaling. The script tests native popups, rapid changes, and browser-process restarts in disposable profiles. It saves evidence under `private/phase4-final-correction/`. See the [owner testing guide](OWNER_PHASE4_TESTING.md) for ordinary browser checks.
 
 ## Privacy and permissions
 

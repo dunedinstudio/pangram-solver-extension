@@ -36,6 +36,11 @@ test('footer has one external link and a separate plain-text attribution', async
   assert.match(html, /aria-label="Required center letter" aria-required="true"/);
 });
 
+test('mode markup puts Full Answers on the left and selects Hints Only before restore', async () => {
+  const html = await readFile(new URL('popup.html', output), 'utf8');
+  assert.match(html, /<button id="full-mode" type="button" aria-pressed="false">Full Answers<\/button>\s+<button id="hint-mode" type="button" aria-pressed="true">Hints Only<\/button>/);
+});
+
 test('manifest requests only local storage and preserves the local-only script policy', async () => {
   const { version } = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
   assert.equal(manifest.manifest_version, 3);

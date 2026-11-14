@@ -15,7 +15,7 @@ assert.ok(Object.hasOwn(executables, name), 'Choose chrome or edge.');
 const preview = process.argv.includes('--preview');
 const scale = process.argv.includes('--scaled') ? 1.25 : 1;
 const root = fileURLToPath(new URL('../', import.meta.url));
-const evidence = resolve(root, 'private/phase4', [name, preview ? 'preview' : 'native', scale].join('-'));
+const evidence = resolve(root, 'private/phase4-final-correction', [name, preview ? 'preview' : 'native', scale].join('-'));
 const unpacked = resolve(root, 'dist/chromium');
 await mkdir(evidence, { recursive: true });
 
@@ -191,6 +191,26 @@ try {
     for (const letter of letters) await key(letter);
   }
 
+  const storageKey = 'pangramSolver.activePuzzle';
+  const storageRead = `chrome.storage.local.get(${JSON.stringify(storageKey)}).then(data => data[${JSON.stringify(storageKey)}])`;
+  const data = () => evaluate(storageRead);
+  const masking = words => words.map(word => word.slice(0, 2) + '•'.repeat(word.length - 2));
+
+  async function expectMode(selected) {
+    const buttons = await evaluate(`[...document.querySelectorAll('.mode-switch button')].map(button => {
+      const bounds = button.getBoundingClientRect();
+      return { label: button.textContent, left: bounds.left, right: bounds.right, top: bounds.top,
+        pressed: button.getAttribute('aria-pressed'), background: getComputedStyle(button).backgroundColor };
+    })`);
+    assert.deepEqual(buttons.map(button => button.label), ['Full Answers', 'Hints Only']);
+    const [left, right] = buttons;
+    assert.ok(left.left < right.left && left.right <= right.left + 0.5
+      && Math.abs(left.top - right.top) < 0.5, JSON.stringify(buttons));
+    assert.deepEqual(buttons.map(button => button.pressed), ['full', 'hints'].map(mode => String(mode === selected)));
+    assert.deepEqual(buttons.map(button => button.background), ['full', 'hints'].map(mode =>
+      mode === selected ? 'rgb(244, 217, 135)' : 'rgba(0, 0, 0, 0)'));
+  }
+
   await check('correct installed extension and popup context', async () => {
     const { extensions } = await cdp.send('Extensions.getExtensions');
     assert.ok(extensions.some(extension => extension.name === 'Pangram Solver' && extension.enabled));
@@ -202,11 +222,13 @@ try {
     assert.equal(await evaluate('navigator.onLine'), false);
   });
 
-  await check('empty state, accessible names, center focus and compact geometry', async () => {
+  await check('fresh Hints Only selection, accessible names, center focus and compact geometry', async () => {
     await waitFor(() => evaluate("document.querySelector('#result-status')?.textContent.startsWith('Enter all')"), 'dictionary ready');
     assert.equal(await read('#letter-count'), '0 of 7 letters');
     assert.deepEqual(await cells(), Array(7).fill(''));
     assert.equal(await focus(), 0);
+    await expectMode('hints');
+    assert.equal(await data(), undefined);
     const ax = await popup.send('Accessibility.getFullAXTree');
     const textboxes = ax.nodes.filter(node => node.role?.value === 'textbox' && !node.ignored);
     assert.deepEqual(textboxes.map(node => node.name.value), [
@@ -214,6 +236,11 @@ try {
       'Outer letter, lower right', 'Outer letter, bottom', 'Outer letter, lower left', 'Outer letter, upper left',
     ]);
     assert.equal(textboxes[0].properties.find(prop => prop.name === 'required')?.value.value, true);
+    for (const [name, expected] of [['Full Answers', 'false'], ['Hints Only', 'true']]) {
+      const button = ax.nodes.find(node => !node.ignored && node.name?.value === name
+        && ['button', 'toggleButton'].includes(node.role?.value));
+      assert.equal(String(button?.properties?.find(prop => prop.name === 'pressed')?.value.value), expected);
+    }
     report.layout = await evaluate(`(() => {
       const root = document.documentElement;
       const footer = document.querySelector('footer').getBoundingClientRect();
@@ -244,13 +271,26 @@ try {
   const golden = ['coating', 'cogitating', 'cogitation', 'contacting', 'contagion', 'containing', 'cottaging'];
   await check('automatic golden puzzle, exact order, lengths and result announcement', async () => {
     for (const letter of 'tInG') await key(letter);
-    assert.deepEqual(await names(), golden);
+    assert.deepEqual(await names(), masking(golden));
     assert.equal(await read('#result-count'), '7 found');
     assert.match(await read('#result-announcement'), /^7 pangrams found\./);
     assert.deepEqual(await evaluate("[...document.querySelectorAll('.word-length')].map(e => e.textContent)"),
       golden.map(word => `${word.length} letters`));
     assert.equal(await focus(), 6);
+    await expectMode('hints');
+    await shot('14-golden-first-hints');
+    await evaluate("document.querySelector('#reset').focus()");
+    await key('Tab');
+    assert.equal(await evaluate('document.activeElement.id'), 'full-mode');
+    await key('Tab');
+    assert.equal(await evaluate('document.activeElement.id'), 'hint-mode');
+    await key('Tab', 8);
+    assert.equal(await evaluate('document.activeElement.id'), 'full-mode');
+    await key('Enter');
+    await expectMode('full');
+    assert.deepEqual(await names(), golden);
     await shot('03-golden');
+    await focusCell(6);
   });
 
   await check('duplicate and invalid edits preserve the previous letter and clear stale results', async () => {
@@ -339,6 +379,7 @@ try {
     assert.equal(await read('#input-error'), '');
     assert.deepEqual(await cells(), Array(7).fill(''));
     assert.deepEqual(await names(), []);
+    await expectMode('full');
     await shot('06-reset');
   });
 
@@ -374,8 +415,6 @@ try {
     await context.setOffline(true);
   });
 
-  const storageKey = 'pangramSolver.activePuzzle';
-  const storageRead = `chrome.storage.local.get(${JSON.stringify(storageKey)}).then(data => data[${JSON.stringify(storageKey)}])`;
   const ready = async () => {
     await waitFor(() => evaluate("document.querySelector('.letters')?.getAttribute('aria-busy') === 'false'"), 'restored popup');
   };
@@ -417,9 +456,6 @@ try {
     await returnToGame();
   }
 
-  const masking = words => words.map(word => word.slice(0, 2) + '•'.repeat(word.length - 2));
-  const mode = id => evaluate(`document.querySelector('#${id}-mode').getAttribute('aria-pressed')`);
-  const data = () => evaluate(storageRead);
   const readRequest = () => evaluate("chrome.runtime.sendMessage({type:'pangram:read'})");
   const rawSave = (record, baseRevision) => evaluate(`chrome.runtime.sendMessage(${JSON.stringify({
     type: 'pangram:save', baseRevision, record,
@@ -434,7 +470,8 @@ try {
     // The CTA closed the action popup. The earlier keyboard Reset should already be durable.
     await reopen();
     assert.deepEqual(await cells(), Array(7).fill(''));
-    assert.equal(await mode('full'), 'true');
+    await expectMode('full');
+    assert.equal((await data()).mode, 'full');
     for (const [index, letter] of [...'COATIN'].entries()) {
       await focusCell(index);
       await immediateKeyAndClose(letter);
@@ -443,12 +480,14 @@ try {
       assert.deepEqual(await cells(), [...'COATIN'.slice(0, index + 1), ...Array(6 - index).fill('')]);
     }
     await shot('08-restored-partial');
+    const partial = await data();
     await context.close();
     context = await launch();
     await connect();
     await reopen();
     assert.deepEqual(await cells(), [...'COATIN', '']);
-    assert.equal(await mode('full'), 'true');
+    await expectMode('full');
+    assert.deepEqual(await data(), partial);
     await focusCell(6);
     await key('g');
     await saved(value => value.cells.join('') === 'COATING');
@@ -458,7 +497,7 @@ try {
   await check('hint masking, DOM and accessibility privacy, mode persistence and individual reveals', async () => {
     await evaluate("document.querySelector('#hint-mode').focus()");
     await key('Enter');
-    assert.equal(await mode('hint'), 'true');
+    await expectMode('hints');
     assert.deepEqual(await names(), masking(golden));
     assert.equal(await read('#reveal-progress'), '0 of 7 revealed');
     assert.equal(await read('#result-count'), '7 found');
@@ -477,17 +516,20 @@ try {
     await returnToGame();
     report.reopenMs = await reopen();
     await waitFor(async () => (await names()).length === 7, 'regenerated hints');
+    await expectMode('hints');
     assert.deepEqual(await cells(), [...'COATING']);
     assert.deepEqual(await names(), ['coating', ...masking(golden.slice(1))]);
     assert.equal(await read('#reveal-progress'), '1 of 7 revealed');
     await shot('10-restored-reveal');
     await click('#full-mode');
     assert.deepEqual(await names(), golden);
+    const fullRecord = await saved(value => value.mode === 'full');
     await returnToGame();
     await reopen();
-    assert.equal(await mode('full'), 'true');
+    await expectMode('full');
     await waitFor(async () => (await names()).length === 7, 'restored full results');
     assert.deepEqual(await names(), golden);
+    assert.deepEqual(await data(), fullRecord);
     await click('#hint-mode');
     assert.equal(await read('#reveal-progress'), '1 of 7 revealed');
     await evaluate("for (const button of [...document.querySelectorAll('.reveal:not([hidden])')].slice(0, 2)) button.click()");
@@ -499,14 +541,16 @@ try {
   });
 
   await check('browser and worker restart restore the puzzle, mode and exact reveal set', async () => {
+    const hinted = await data();
     await context.close();
     context = await launch();
     await connect();
     await reopen();
     await waitFor(async () => (await names()).length === 7, 'restarted dictionary');
     assert.deepEqual(await cells(), [...'COATING']);
-    assert.equal(await mode('hint'), 'true');
+    await expectMode('hints');
     assert.deepEqual(await names(), [...golden.slice(0, 3), ...masking(golden.slice(3))]);
+    assert.deepEqual(await data(), hinted);
 
     const id = popup.id;
     await returnToGame();
@@ -567,7 +611,7 @@ try {
     await connect();
     await reopen();
     assert.deepEqual(await cells(), Array(7).fill(''));
-    assert.equal(await mode('hint'), 'true');
+    await expectMode('hints');
     assert.equal(await read('#reveal-progress'), '');
     await shot('12-persistent-reset');
   });
@@ -580,6 +624,18 @@ try {
     await fill('COATING');
     await waitFor(async () => (await names()).length === 7, 'in-memory solving');
     assert.deepEqual(await data(), { schemaVersion: 888, marker: 'keep' });
+
+    const withoutMode = {
+      schemaVersion: 1, revision: '00000000-0000-4000-8000-000000000007:1',
+      cells: Array(7).fill(''), revealedWords: [],
+    };
+    for (const value of [withoutMode, { ...withoutMode, mode: 'invalid' }]) {
+      await rawStorage(value);
+      await returnToGame();
+      await reopen();
+      await expectMode('hints');
+      assert.deepEqual(await data(), value);
+    }
 
     await rawStorage({ schemaVersion: 1, cells: ['?'] });
     await returnToGame();
@@ -657,7 +713,7 @@ try {
     assert.match(await read('#storage-notice'), /could not be loaded/);
     for (const letter of 'COATING') await key(letter);
     await waitFor(async () => (await names()).length === 7, 'read failure still solves');
-    assert.deepEqual(await names(), golden);
+    assert.deepEqual(await names(), masking(golden));
     assert.equal(await data(), undefined);
 
     await returnToGame();
@@ -701,7 +757,7 @@ try {
     assert.deepEqual(await names(), []);
     await evaluate('globalThis.qaReleaseDictionary()');
     await waitFor(async () => (await names()).length === 7, 'automatic solve after dictionary readiness');
-    assert.deepEqual(await names(), golden);
+    assert.deepEqual(await names(), masking(golden));
   });
 
   report.status = 'PASS';
