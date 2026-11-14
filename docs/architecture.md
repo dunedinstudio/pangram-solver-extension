@@ -11,7 +11,7 @@ The Chrome and Edge desktop targets share one Manifest V3 unpacked build. The to
 | `assets/` | Approved artwork sources and runtime exports |
 | `scripts/`, `tests/` | Reproducible builds and Node-based checks |
 
-The development build requests zero permissions. Its restrictive extension-page CSP allows packaged scripts, styles, and images. The dictionary is a generated local module, so solving requires no network connections. Phase 4 adds only `storage` for puzzle state. Words and feedback use DOM text. Product scope excludes service integrations, host access, content scripts, browsing history, tracking, remote code, accounts, ads, and cloud sync.
+The development build requests only `storage` for puzzle state. Its restrictive extension-page CSP allows packaged scripts, styles, and images. The dictionary is a generated local module, so solving requires no network connections. Words and feedback use DOM text. Product scope excludes service integrations, host access, content scripts, browsing history, tracking, remote code, accounts, ads, and cloud sync.
 
 ## Pangram engine
 
@@ -25,7 +25,7 @@ A complete puzzle returns `{ status: 'solved', count, pangrams }`, with an empty
 
 ## Popup and branding
 
-The Phase 3 action popup keeps the current puzzle in `popup.ts`. `honeycomb.ts` translates input events into candidate edits. The controller validates those edits with the Phase 2 contract and sends display states to `results.ts`. The results header can accommodate a future mode switch, and the rows separate word and length for a future reveal control. Phase 3 displays Full Answers and resets only the open popup. Phase 4 will connect hints and stored state through the controller.
+The action popup controller in `popup.ts` validates candidate edits from `honeycomb.ts`, manages its in-memory state, and submits accepted snapshots. `results.ts` renders the current display mode and removes a reveal button after activation. It updates existing rows in place, focuses the revealed row, and preserves the list scroll position. Concealed rows put only the prefix, bullets, and length in the DOM and accessibility labels.
 
 Use a compact cream, white, and honey-yellow toolbar popup with a smiling honeybee, a centered **Pangram Solver** heading, and the subtitle **Enter 7 letters to find pangrams instantly.** Follow the approved concept image once supplied. The geometry is one yellow center cell and six surrounding cells. Use accessible positional labels, a visible focus indicator, natural Tab order, arrow movement that matches the layout, and straightforward edit, clear, and paste behavior.
 
@@ -35,25 +35,27 @@ The exact footer sentence is **Need more Spelling Bee solving tools? Visit our F
 
 ## Browser-local state and privacy
 
-Phase 4 will use one versioned record at `pangramSolver.activePuzzle` in `chrome.storage.local`. A dedicated extension service worker owns storage mutations and registers its message handlers synchronously on startup. The popup owns rendering and local solving. It sends an intent on each accepted edit, mode change, reveal, or reset. The worker does not load the dictionary or use the network. [Chrome storage documentation](https://developer.chrome.com/docs/extensions/reference/api/storage)
+The extension keeps one versioned record at `pangramSolver.activePuzzle` in `chrome.storage.local`. The service worker registers its listener synchronously and accepts messages from its own popup URL. It imports the lightweight input validator via the schema module. Dictionary indexing and solving stay in the popup. [Chrome storage documentation](https://developer.chrome.com/docs/extensions/reference/api/storage)
 
 | Local field | Purpose |
 | --- | --- |
 | `schemaVersion` | Decode and migrate a known record shape |
-| `revision` | Persisted opaque mutation ID used to reject stale changes across popup instances and worker restarts |
+| `revision` | Popup writer UUID and increasing sequence, persisted together |
 | `cells` | Seven positional uppercase ASCII letters or empty strings. Includes partial puzzles |
 | `mode` | `full` or `hints`. Defaults to `full` and remains a preference when Reset clears a puzzle |
 | `revealedWords` | Deduplicated lowercase word IDs for the current complete puzzle only. Empty for partial or reset state |
 
 A canonical puzzle identity is derived from the center and sorted outer letters. Preserve reveal IDs when only outer positions are reordered in a single update with the same identity. Clear them when a valid puzzle changes identity or becomes partial. For a reopened popup, regenerate results and intersect reveal IDs with current results before showing progress. A dictionary update can drop obsolete IDs. Persist neither generated result lists nor puzzle history.
 
-Open by requesting the latest record through the worker. Serialize reads and mutations in receipt order and validate sender, message, payload, and expected revision before writing. Send each mutation immediately through the browser-owned message channel. Each carries its predecessor's revision and a new unique ID so rapid actions can follow a chain without waiting for acknowledgments. The worker only commits when the predecessor matches the current revision. Independent popups generate different IDs even when they start from the same saved state. Do not depend on popup unload, a popup-owned write timer, or an acknowledgment handler to initiate persistence.
+The popup sends `pangram:read` on startup and blocks edits until restoration finishes. Its dictionary loads concurrently. On every accepted edit, mode change, reveal, or Reset, the popup sends `pangram:save` with the full small state snapshot, its writer sequence, and the revision observed on startup. There is no unload hook, debounce, or wait for a prior save acknowledgement. The worker serializes reads and writes and rereads storage for each operation.
 
-Reset is a mutation that commits empty cells and reveals with a new revision. Earlier accepted writes finish before Reset. A delayed write that expects an older revision or an uncommitted predecessor is rejected. Keep the cleared record so the barrier survives restart. A repeated message matching the current revision is acknowledged without writing again. A stale retry receives a conflict and the current record. On conflict, reconcile the visible state and surface failed actions, including a Reset that could not commit. Retrying Reset uses a fresh revision after reconciliation. Keep a working in-memory popup on storage failure and show a concise notice when progress cannot be saved.
+A writer can take over when its startup revision equals the durable revision. After takeover, only a higher sequence from that writer can advance the stored state. An identical revision is acknowledged without writing again and a lower sequence is superseded. A newer same-writer snapshot includes earlier local changes, so an out-of-order arrival or failed earlier write does not force later valid snapshots to wait for missing predecessors. Across writers, the startup revision check prevents stale overwrites. A conflict triggers an authoritative read and a visible warning. Another attempt uses a fresh writer identity.
 
-Validate saved cell count, character set, duplicates, mode, revision and reveal IDs. Start safely on corrupt state. An unrecognized newer schema opens an in-memory session with a persistence notice and preserves its record. Perform known migrations inside the same worker queue. Test popup teardown during in-flight edits and Reset on both browsers because the durability contract applies to worker-received mutations and depends on browser behavior. Respect profile removal, extension uninstall, and browser storage clearing. No retention timer is needed for the single active record.
+Reset commits empty cells and reveals with a new revision, retains the display preference, and leaves a durable barrier in storage. The queue prevents an in-flight older write from finishing after a newer write. A worker-delivered mutation remains eligible to finish after its popup closes. A successful storage write is the durability boundary. Browser shutdown before delivery or during a failed write can lose that interaction, and a failed Reset can leave the previous record in place.
 
-The extension will store data in the browser profile for its owner and send no puzzle or reveal data externally. The website CTA performs a normal HTTPS navigation via the browser and the website handles that visit under its own privacy practices. Phase 5 will document user controls and reconcile both store declarations with the shipped build.
+The decoder checks the schema, normalized cells, distinctness, mode, revision and bounded reveal IDs. A corrupt record starts a fresh puzzle and is replaced on a successful edit. An unknown future schema stays intact and opens an in-memory session. A read failure also opens an in-memory session, and a write failure displays a warning while solving remains available. Phase 4 introduces the first schema. The extension keeps one record until replacement, uninstallation, profile removal, or storage clearing.
+
+The extension keeps data in the browser profile and sends no puzzle or reveal data externally. The website CTA performs a separate user-initiated HTTPS navigation under the website's privacy practices. Phase 5 will document user controls and reconcile both store declarations with the shipped build.
 
 ## Verification plan
 

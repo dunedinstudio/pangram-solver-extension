@@ -40,13 +40,21 @@
           <h2 id="results-heading">Pangrams</h2>
           <span id="result-count" class="badge" hidden></span>
         </div>
+        <div class="result-options">
+          <div class="mode-switch" role="group" aria-label="Answer display">
+            <button id="full-mode" type="button" aria-pressed="true">Full Answers</button>
+            <button id="hint-mode" type="button" aria-pressed="false">Hints Only</button>
+          </div>
+          <span id="reveal-progress"></span>
+        </div>
         <div id="result-panel" class="result-panel" role="region" aria-label="Pangram results" tabindex="0">
-          <p id="result-status">Preparing the offline dictionary…</p>
+          <p id="result-status">Restoring your puzzle…</p>
           <p id="input-error" role="status"></p>
           <ul id="result-list" hidden></ul>
         </div>
         <p id="result-announcement" class="sr-only" role="status"></p>
         <p class="disclaimer">Suggested pangrams are dictionary candidates. Individual games may accept different words.</p>
+        <p id="storage-notice" role="status"></p>
       </section>
 
       <footer>

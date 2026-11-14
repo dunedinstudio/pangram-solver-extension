@@ -8,8 +8,9 @@ const manifest = JSON.parse(await readFile(new URL('manifest.json', output), 'ut
 
 test('build emits the complete development popup, engine and dictionary files', async () => {
   assert.deepEqual((await readdir(output)).sort(), [
-    'data', 'dictionary-data.js', 'dictionary.js', 'honeycomb.js', 'icons', 'licenses',
-    'manifest.json', 'pangram.js', 'popup.css', 'popup.html', 'popup.js', 'results.js',
+    'background.js', 'browser.js', 'data', 'dictionary-data.js', 'dictionary.js', 'honeycomb.js',
+    'icons', 'licenses', 'manifest.json', 'pangram.js', 'persistence.js', 'popup.css',
+    'popup.html', 'popup.js', 'results.js', 'state.js',
   ]);
   assert.deepEqual(await readdir(new URL('data/', output)), ['provenance.json']);
   assert.deepEqual((await readdir(new URL('licenses/', output))).sort(), [
@@ -35,15 +36,18 @@ test('footer has one external link and a separate plain-text attribution', async
   assert.match(html, /aria-label="Required center letter" aria-required="true"/);
 });
 
-test('manifest has its own identity, no requested access and a local-only script policy', async () => {
+test('manifest requests only local storage and preserves the local-only script policy', async () => {
   const { version } = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
   assert.equal(manifest.manifest_version, 3);
   assert.equal(manifest.name, 'Pangram Solver');
   assert.equal(manifest.version, version);
   assert.equal(manifest.action.default_title, manifest.name);
   assert.deepEqual(Object.keys(manifest).sort(), [
-    'action', 'content_security_policy', 'description', 'icons', 'manifest_version', 'name', 'version',
+    'action', 'background', 'content_security_policy', 'description', 'icons', 'manifest_version',
+    'name', 'permissions', 'version',
   ]);
+  assert.deepEqual(manifest.permissions, ['storage']);
+  assert.deepEqual(manifest.background, { service_worker: 'background.js', type: 'module' });
   assert.deepEqual(manifest.content_security_policy.extension_pages.split('; '), [
     "default-src 'none'", "script-src 'self'", "style-src 'self'", "img-src 'self'", "object-src 'none'",
     "base-uri 'none'", "form-action 'none'", "frame-ancestors 'none'",

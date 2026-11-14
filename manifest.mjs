@@ -8,6 +8,8 @@ export function createManifest({ version, description }) {
     version,
     description,
     icons,
+    permissions: ['storage'],
+    background: { service_worker: 'background.js', type: 'module' },
     action: {
       default_title: 'Pangram Solver',
       default_popup: 'popup.html',

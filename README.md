@@ -8,15 +8,16 @@ Powered By https://spellingbeeanswers.app/
 
 A pangram uses all seven distinct letters of a puzzle, including its required center letter. A valid candidate uses only those letters, may repeat them, and follows the game's four-letter minimum. An answer that uses all seven distinct letters necessarily has at least seven characters. Games may accept different words from the bundled dictionary. Pangram Solver is an independent tool for Spelling Bee games.
 
-**Implemented.** Phase 1 provides the Manifest V3 scaffold, strict TypeScript build, and package checks. Phase 2 provides the offline pangram engine. Phase 3 adds the honeybee popup with keyboard and mouse entry, the required center cell, automatic Full Answers, counts, word lengths, and Reset for the open popup.
+**Implemented.** The Manifest V3 extension includes the offline pangram engine, keyboard and mouse entry, automatic results, and word lengths. Full Answers is the default. Hints Only shows two letters and the word length, with individual reveal buttons and a progress counter. The popup restores saved letters, display mode, and reveals after closure and browser restart.
 
-**Planned.** Phase 4 adds Hints Only, individual reveals, puzzle and reveal restoration, and persistent Reset. Phase 5 prepares Chrome and Edge release packages. Phase 6 handles store submissions.
+**Planned.** Phase 5 prepares Chrome and Edge release packages. Phase 6 handles store submissions.
 
 ## How to use the popup
 
 1. Open Pangram Solver from the toolbar. Enter the required center letter and six different outer letters.
 2. Read the matching pangrams and word lengths as soon as the puzzle is complete. Scroll inside the results panel to see longer lists.
-3. Use Reset when you want to start a fresh puzzle.
+3. Select **Hints Only** to reveal words one at a time. Open the popup again to resume your saved puzzle and reveals.
+4. Use **Reset** to clear the saved puzzle and reveals while keeping the selected display mode.
 
 ## Chrome and Edge
 
@@ -36,11 +37,11 @@ pnpm run benchmark
 
 The build writes the unpacked extension to `dist/chromium`. To inspect the development popup, enable Developer mode in `chrome://extensions` or `edge://extensions`, choose **Load unpacked**, and select that directory. The Node.js tests verify the package and compare the engine against independent dictionary oracles. Run the benchmark to measure dictionary initialization and lookup latency in Node.js.
 
-The optional browser verification uses an installed Chrome or Edge and Playwright Core (`1.62.1` was tested). Set `PANGRAM_PLAYWRIGHT` to the directory of an existing Playwright Core installation, then run `node scripts/verify-browser.mjs chrome` or `node scripts/verify-browser.mjs edge` after building. Add `--scaled` for 125% device scaling. The script uses isolated profiles and saves local evidence under `private/phase3/`.
+The optional browser verification uses an installed Chrome or Edge and Playwright Core (`1.62.1` was tested). Set `PANGRAM_PLAYWRIGHT` to the directory of an existing Playwright Core installation, then run `node scripts/verify-browser.mjs chrome` or `node scripts/verify-browser.mjs edge` after building. Add `--scaled` for 125% device scaling. The script tests native popups, rapid changes, and browser-process restarts in disposable profiles. It saves evidence under `private/phase4/`. See the [owner testing guide](OWNER_PHASE4_TESTING.md) for ordinary browser checks.
 
 ## Privacy and permissions
 
-The development build requests zero permissions and keeps letters in memory for the open popup. Solving uses packaged data and requires neither an account nor an internet connection. Phase 4 will request `storage` to remember the active puzzle, mode, and individual reveals in the local browser profile. The footer link opens the website only when selected and carries no puzzle data. That website has its own privacy practices. See the [architecture](docs/architecture.md) for the data inventory.
+The extension requests only `storage` to keep the active puzzle, display mode, and individual reveals in the local browser profile. Solving uses packaged data and requires neither an account nor an internet connection. The footer link opens the website only when selected and carries no puzzle data. That website has its own privacy practices. See the [architecture](docs/architecture.md) for the data inventory and save behavior.
 
 ## Dictionary and rights
 
@@ -50,7 +51,7 @@ Dunedin Studio reserves its rights in the original application code and artwork.
 
 ## Release status and contact
 
-Version 0.1.0 is a development build with the verified Phase 2 engine and Phase 3 popup. Hints, persistence, and browser-store work are planned. See the [architecture](docs/architecture.md) and [marketplace policy assessment](docs/marketplace-policy.md).
+Version 0.1.0 is an unpacked development build with the Phase 4 hints and persistence workflow verified in native Chrome and Edge popups. Store preparation and submissions are planned. See the [architecture](docs/architecture.md) and [marketplace policy assessment](docs/marketplace-policy.md).
 
 The GitHub repository stays private throughout development. Only the owner may decide whether and when it becomes public. Completing Phase 6 or receiving browser-store approval does not change repository visibility.
 
