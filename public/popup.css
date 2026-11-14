@@ -1,0 +1,25 @@
+:root {
+  color-scheme: light;
+  font-family: system-ui, sans-serif;
+  background: #fffaee;
+  color: #19140e;
+}
+
+body {
+  inline-size: 18rem;
+  margin: 0;
+}
+
+main {
+  padding: 1rem;
+}
+
+h1 {
+  margin-block: 0 0.5rem;
+  font-size: 1.25rem;
+}
+
+p {
+  margin: 0;
+  line-height: 1.5;
+}
