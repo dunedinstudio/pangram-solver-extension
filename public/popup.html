@@ -8,9 +8,51 @@
     <script type="module" src="popup.js"></script>
   </head>
   <body>
-    <main>
-      <h1>Pangram Solver</h1>
-      <p id="solver-status" role="status">Checking the offline solver…</p>
+    <main class="popup">
+      <header class="masthead">
+        <div class="title">
+          <img src="icons/mascot.png" alt="" width="58" height="58">
+          <h1>Pangram Solver</h1>
+        </div>
+        <p>Enter 7 letters to find pangrams instantly.</p>
+      </header>
+
+      <section class="letters" aria-labelledby="letters-heading">
+        <div class="section-heading">
+          <h2 id="letters-heading">YOUR LETTERS</h2>
+          <span id="letter-count">0 of 7 letters</span>
+        </div>
+        <div class="honeycomb">
+          <div class="cell center"><input type="text" aria-label="Required center letter" aria-required="true" aria-describedby="puzzle-rule" autofocus></div>
+          <div class="cell top"><input type="text" aria-label="Outer letter, top"></div>
+          <div class="cell upper-right"><input type="text" aria-label="Outer letter, upper right"></div>
+          <div class="cell lower-right"><input type="text" aria-label="Outer letter, lower right"></div>
+          <div class="cell bottom"><input type="text" aria-label="Outer letter, bottom"></div>
+          <div class="cell lower-left"><input type="text" aria-label="Outer letter, lower left"></div>
+          <div class="cell upper-left"><input type="text" aria-label="Outer letter, upper left"></div>
+        </div>
+        <button id="reset" type="button"><span aria-hidden="true">↻</span> Reset</button>
+        <p id="puzzle-rule">Every pangram must use the center letter <span class="rule-hex" aria-hidden="true"></span> and all 7 letters.</p>
+      </section>
+
+      <section class="results" aria-labelledby="results-heading">
+        <div class="section-heading">
+          <h2 id="results-heading">Pangrams</h2>
+          <span id="result-count" class="badge" hidden></span>
+        </div>
+        <div id="result-panel" class="result-panel" role="region" aria-label="Pangram results" tabindex="0">
+          <p id="result-status">Preparing the offline dictionary…</p>
+          <p id="input-error" role="status"></p>
+          <ul id="result-list" hidden></ul>
+        </div>
+        <p id="result-announcement" class="sr-only" role="status"></p>
+        <p class="disclaimer">Suggested pangrams are dictionary candidates. Individual games may accept different words.</p>
+      </section>
+
+      <footer>
+        <p>Need more Spelling Bee solving tools? <a href="https://spellingbeeanswers.app/" target="_blank" rel="noopener noreferrer">Visit our FREE solver!</a></p>
+        <p class="attribution">Powered By spellingbeeanswers.app</p>
+      </footer>
     </main>
   </body>
 </html>

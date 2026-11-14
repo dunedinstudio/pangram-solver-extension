@@ -11,7 +11,7 @@ The Chrome and Edge desktop targets share one Manifest V3 unpacked build. The to
 | `assets/` | Approved artwork sources and runtime exports |
 | `scripts/`, `tests/` | Reproducible builds and Node-based checks |
 
-The development build requests zero permissions. Its restrictive extension-page CSP allows packaged scripts and styles. The dictionary is a generated local module, so solving requires no network connections. Phase 3 can allow same-origin packaged images. Phase 4 adds only `storage` for puzzle state. Render words and feedback as DOM text. Product scope excludes service integrations, host access, content scripts, browsing history, tracking, remote code, accounts, ads, and cloud sync.
+The development build requests zero permissions. Its restrictive extension-page CSP allows packaged scripts, styles, and images. The dictionary is a generated local module, so solving requires no network connections. Phase 4 adds only `storage` for puzzle state. Words and feedback use DOM text. Product scope excludes service integrations, host access, content scripts, browsing history, tracking, remote code, accounts, ads, and cloud sync.
 
 ## Pangram engine
 
@@ -24,6 +24,8 @@ During preparation, the engine validates the sorted lowercase ASCII list and ind
 A complete puzzle returns `{ status: 'solved', count, pangrams }`, with an empty list when no words qualify. Each read-only entry has a lowercase `word` and its `length`. Buckets preserve the dictionary's ASCII alphabetical order. The same results support the Phase 3 display and the Phase 4 hint view. The word itself is a stable reveal ID when a puzzle is restored. The solver uses no browser storage. These are dictionary candidates, and accepted words vary by game.
 
 ## Popup and branding
+
+The Phase 3 action popup keeps the current puzzle in `popup.ts`. `honeycomb.ts` translates input events into candidate edits. The controller validates those edits with the Phase 2 contract and sends display states to `results.ts`. The results header can accommodate a future mode switch, and the rows separate word and length for a future reveal control. Phase 3 displays Full Answers and resets only the open popup. Phase 4 will connect hints and stored state through the controller.
 
 Use a compact cream, white, and honey-yellow toolbar popup with a smiling honeybee, a centered **Pangram Solver** heading, and the subtitle **Enter 7 letters to find pangrams instantly.** Follow the approved concept image once supplied. The geometry is one yellow center cell and six surrounding cells. Use accessible positional labels, a visible focus indicator, natural Tab order, arrow movement that matches the layout, and straightforward edit, clear, and paste behavior.
 

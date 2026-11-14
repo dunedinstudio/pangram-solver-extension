@@ -165,17 +165,6 @@ test('dictionary initialization is cached and unavailable resources return a typ
   }
 });
 
-test('the development popup calls the bundled engine and renders the reference count', async () => {
-  const status = { textContent: '' };
-  globalThis.document = { getElementById: id => id === 'solver-status' ? status : null };
-  try {
-    await import('../dist/chromium/popup.js');
-    assert.equal(status.textContent, 'Development check for C/O/A/T/I/N/G. 7 pangrams.');
-  } finally {
-    delete globalThis.document;
-  }
-});
-
 // Independent corpus projection uses a sorted character signature and never imports mask helpers.
 const oracleBySignature = new Map();
 for (const word of words) {

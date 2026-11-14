@@ -4,7 +4,7 @@ import { copyFile, lstat, mkdir, readFile, rm, writeFile } from 'node:fs/promise
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { createManifest } from '../manifest.mjs';
+import { createManifest, icons } from '../manifest.mjs';
 
 const root = new URL('../', import.meta.url);
 const dist = new URL('dist/', root);
@@ -54,6 +54,10 @@ if (result.status !== 0) throw new Error('TypeScript compilation failed.');
 
 for (const file of ['popup.html', 'popup.css']) {
   await copyFile(new URL(`public/${file}`, root), new URL(file, output));
+}
+await mkdir(new URL('icons/', output));
+for (const file of ['mascot.png', ...Object.values(icons).map(path => path.split('/')[1])]) {
+  await copyFile(new URL(`assets/bee/${file}`, root), new URL(`icons/${file}`, output));
 }
 const manifest = JSON.stringify(createManifest(packageInfo), null, 2);
 await writeFile(new URL('manifest.json', output), `${manifest}\n`, 'utf8');

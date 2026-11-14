@@ -8,8 +8,8 @@ const manifest = JSON.parse(await readFile(new URL('manifest.json', output), 'ut
 
 test('build emits the complete development popup, engine and dictionary files', async () => {
   assert.deepEqual((await readdir(output)).sort(), [
-    'data', 'dictionary-data.js', 'dictionary.js', 'licenses', 'manifest.json',
-    'pangram.js', 'popup.css', 'popup.html', 'popup.js',
+    'data', 'dictionary-data.js', 'dictionary.js', 'honeycomb.js', 'icons', 'licenses',
+    'manifest.json', 'pangram.js', 'popup.css', 'popup.html', 'popup.js', 'results.js',
   ]);
   assert.deepEqual(await readdir(new URL('data/', output)), ['provenance.json']);
   assert.deepEqual((await readdir(new URL('licenses/', output))).sort(), [
@@ -21,7 +21,18 @@ test('build emits the complete development popup, engine and dictionary files', 
   assert.deepEqual(html.match(/<script\b[^>]*>[^<]*<\/script>/gi), [
     '<script type="module" src="popup.js"></script>',
   ]);
-  assert.doesNotMatch(html, /\b(?:on\w+\s*=|https?:\/\/)/i);
+  assert.doesNotMatch(html, /\bon\w+\s*=/i);
+  assert.deepEqual(html.match(/https?:\/\/[^"\s]+/g), ['https://spellingbeeanswers.app/']);
+});
+
+test('footer has one external link and a separate plain-text attribution', async () => {
+  const html = await readFile(new URL('popup.html', output), 'utf8');
+  assert.match(html, /<p>Need more Spelling Bee solving tools\? <a href="https:\/\/spellingbeeanswers\.app\/" target="_blank" rel="noopener noreferrer">Visit our FREE solver!<\/a><\/p>/);
+  assert.match(html, /<p class="attribution">Powered By spellingbeeanswers\.app<\/p>/);
+  assert.equal(html.match(/<a\b/g)?.length, 1);
+  assert.match(html, /Enter 7 letters to find pangrams instantly\./);
+  assert.equal(html.match(/<input\b/g)?.length, 7);
+  assert.match(html, /aria-label="Required center letter" aria-required="true"/);
 });
 
 test('manifest has its own identity, no requested access and a local-only script policy', async () => {
@@ -31,12 +42,30 @@ test('manifest has its own identity, no requested access and a local-only script
   assert.equal(manifest.version, version);
   assert.equal(manifest.action.default_title, manifest.name);
   assert.deepEqual(Object.keys(manifest).sort(), [
-    'action', 'content_security_policy', 'description', 'manifest_version', 'name', 'version',
+    'action', 'content_security_policy', 'description', 'icons', 'manifest_version', 'name', 'version',
   ]);
   assert.deepEqual(manifest.content_security_policy.extension_pages.split('; '), [
-    "default-src 'none'", "script-src 'self'", "style-src 'self'", "object-src 'none'",
+    "default-src 'none'", "script-src 'self'", "style-src 'self'", "img-src 'self'", "object-src 'none'",
     "base-uri 'none'", "form-action 'none'", "frame-ancestors 'none'",
   ]);
+});
+
+test('approved mascot and correctly sized distinct PNG icons are packaged', async () => {
+  assert.deepEqual((await readdir(new URL('icons/', output))).sort(),
+    ['icon-128.png', 'icon-16.png', 'icon-32.png', 'icon-48.png', 'mascot.png']);
+  assert.deepEqual(Object.keys(manifest.action.default_icon), ['16', '32']);
+  assert.deepEqual(Object.keys(manifest.icons), ['16', '32', '48', '128']);
+  for (const [size, file] of Object.entries(manifest.icons)) {
+    const icon = await readFile(new URL(file, output));
+    assert.equal(icon.subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
+    assert.equal(icon.readUInt32BE(16), Number(size));
+    assert.equal(icon.readUInt32BE(20), Number(size));
+    if (size in manifest.action.default_icon) assert.equal(manifest.action.default_icon[size], file);
+  }
+  const mascot = await readFile(new URL('icons/mascot.png', output));
+  assert.equal(createHash('sha256').update(mascot).digest('hex'),
+    '5f2e4ecad55278b4e3eef160e58899c582c5dacd98e9eb3f9e4174242f438a2e');
+  assert.notDeepEqual(mascot, await readFile(new URL(manifest.icons[128], output)));
 });
 
 test('the full upstream notices match the dictionary provenance pins', async () => {
