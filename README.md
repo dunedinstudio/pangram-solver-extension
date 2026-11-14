@@ -2,7 +2,6 @@
 
 Pangram Solver is a free browser extension for finding pangrams and getting hints in seven-letter Spelling Bee games.
 
-Powered By https://spellingbeeanswers.app/
 
 ## Made for Spelling Bee games
 
