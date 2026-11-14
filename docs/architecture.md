@@ -6,20 +6,22 @@ The Chrome and Edge desktop targets share one Manifest V3 unpacked build. The to
 
 | Directory | Responsibility |
 | --- | --- |
-| `public/`, `src/` | Popup markup and styles, browser entry point, and future solver and state modules |
-| `data/`, `licenses/` | Dictionary provenance and upstream notices |
+| `public/`, `src/` | Development popup, browser entry point, and independent pangram engine |
+| `data/`, `licenses/` | Dictionary source, provenance, and upstream notices |
 | `assets/` | Approved artwork sources and runtime exports |
 | `scripts/`, `tests/` | Reproducible builds and Node-based checks |
 
-The scaffold requests zero permissions and uses a restrictive extension-page CSP. Allow only packaged scripts and styles. Phase 2 can include the dictionary in a generated local module to keep runtime network connections disabled. Phase 3 can allow same-origin packaged images. Phase 4 adds only `storage` for puzzle state. Render words and feedback as DOM text. Product scope excludes service integrations, host access, content scripts, browsing history, tracking, remote code, accounts, ads, and cloud sync.
+The development build requests zero permissions. Its restrictive extension-page CSP allows packaged scripts and styles. The dictionary is a generated local module, so solving requires no network connections. Phase 3 can allow same-origin packaged images. Phase 4 adds only `storage` for puzzle state. Render words and feedback as DOM text. Product scope excludes service integrations, host access, content scripts, browsing history, tracking, remote code, accounts, ads, and cloud sync.
 
-## Pangram engine plan
+## Pangram engine
 
-Validate positional input as seven single ASCII A–Z letters, with cell 0 as the required center and no case-insensitive duplicates. Distinguish partial, invalid, and complete input. Normalize dictionary entries to lower-case ASCII and retain the four-character rule. A 26-bit letter mask represents the distinct letters. Exact equality between the puzzle mask and a candidate mask proves all seven letters, center inclusion, and absence of outside letters. Repeated characters leave the mask unchanged.
+`loadDictionary()` in `dictionary.js` returns a cached promise with `{ status: 'ready', solve }` or `{ status: 'unavailable' }` if the packaged module is missing or malformed. Each call to `solve({ center, outer })` expects one center cell and exactly six outer cells. Use empty strings for blank cells. A structurally valid partial puzzle yields `incomplete`. Missing or extra cells, unsupported characters or types, and case-insensitive duplicates yield `invalid` with a reason. Case folding follows validation of single ASCII letters.
 
-In Phase 2 use the [pinned derived list](../data/provenance.json). Import it from the published source at the recorded commit, verify SHA-256, count, encoding, uniqueness, and ordering, then emit packaged data in a deterministic build step. The verified regeneration path from the original regional release is to check the manifest and JSON digests, align words with regional masks, select US bit 1 and length ≥ 4, and write in original ASCII order with LF and a final newline. Retain all notices with source and runtime copies. Keep the build independent of the original repository and website once the verified artifact is vendored. The upstream ESDB archive alone needs the original extraction policy, overlays, and reviewed exceptions to reproduce this derivative.
+The build reads `data/words.txt`, verifies its byte count and SHA-256, and encodes its complete contents as a local ES module. To reproduce the source import, copy the `data/words.txt` blob at the pinned Spelling Bee Solver commit and verify it against [provenance](../data/provenance.json). The original regional derivation selected the US bit and words of length ≥ 4 in ASCII order, with one word per LF-delimited line and a final LF. Recreating that regional dataset from upstream ESDB also requires its extraction policy, overlays, and reviewed exceptions. The vendored derivative and notices are the inputs for every clean build.
 
-Choose the smallest measured implementation. A sorted dictionary with a compact mask array supports exact matching. An index from seven-letter masks to ordered buckets is an option if measurements justify it. Produce one stable list of pangrams for both display modes. Game lists differ, so identify results as dictionary candidates. Reading files from the game page or fetching puzzle answers is outside scope.
+During preparation, the engine validates the sorted lowercase ASCII list and indexes words with exactly seven distinct letters by their 26-bit mask. Preparation is linear in the corpus size. The index holds the eligible words and one bucket per populated letter set. A solve validates seven cells and performs one map lookup without parsing or copying the dictionary. Exact mask equality requires the center and all outer letters and excludes outside letters. Repeated characters leave the mask unchanged.
+
+A complete puzzle returns `{ status: 'solved', count, pangrams }`, with an empty list when no words qualify. Each read-only entry has a lowercase `word` and its `length`. Buckets preserve the dictionary's ASCII alphabetical order. The same results support the Phase 3 display and the Phase 4 hint view. The word itself is a stable reveal ID when a puzzle is restored. The solver uses no browser storage. These are dictionary candidates, and accepted words vary by game.
 
 ## Popup and branding
 

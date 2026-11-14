@@ -1,4 +1,5 @@
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { copyFile, lstat, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -22,6 +23,24 @@ for (const directory of [dist, output]) {
 }
 
 const packageInfo = JSON.parse(await readFile(new URL('package.json', root), 'utf8'));
+const provenance = await readFile(new URL('data/provenance.json', root), 'utf8');
+const dictionary = await readFile(new URL('data/words.txt', root));
+const { bytes, sha256, upstreamNotices } = JSON.parse(provenance);
+function verifyHash(data, expected, file) {
+  if (createHash('sha256').update(data).digest('hex') !== expected) {
+    throw new Error(`Integrity check failed for ${file}.`);
+  }
+}
+
+if (dictionary.length !== bytes) throw new Error('Unexpected dictionary byte count.');
+verifyHash(dictionary, sha256, 'data/words.txt');
+const notices = new Map();
+for (const name of ['ESDB-Copyright.txt', 'ESDB-Sources.md', 'NOTICE.md']) {
+  const data = await readFile(new URL(`licenses/${name}`, root));
+  if (name !== 'NOTICE.md') verifyHash(data, upstreamNotices[name], name);
+  notices.set(name, data);
+}
+
 await rm(output, { recursive: true, force: true });
 await mkdir(output, { recursive: true });
 
@@ -38,3 +57,11 @@ for (const file of ['popup.html', 'popup.css']) {
 }
 const manifest = JSON.stringify(createManifest(packageInfo), null, 2);
 await writeFile(new URL('manifest.json', output), `${manifest}\n`, 'utf8');
+await writeFile(new URL('dictionary-data.js', output),
+  `export default ${JSON.stringify(dictionary.toString('utf8'))};\n`, 'utf8');
+await mkdir(new URL('data/', output));
+await writeFile(new URL('data/provenance.json', output), provenance, 'utf8');
+await mkdir(new URL('licenses/', output));
+for (const [name, data] of notices) {
+  await writeFile(new URL(`licenses/${name}`, output), data);
+}
